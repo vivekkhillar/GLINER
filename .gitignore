@@ -1,3 +1,13 @@
 __pycache__/
 *.pyc
 .DS_Store
+.agent
+.agents
+.gemini
+.gsd
+adapters
+scripts
+gsd-style.md
+model_capabilities.yaml
+project_rules.md
+version
