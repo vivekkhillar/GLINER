@@ -60,16 +60,31 @@ GLINER/
   - `normalize_text()` & `INDIC_DIGIT_MAP`: Automatically converts Indic script numerals (e.g., Devanagari `०-९`, Odia `୦-୯`) to standard ASCII digits `0-9`.
 
 ### 3️⃣ Entity Extraction via GLiNER Small Language Model (SLM)
-- **What is GLiNER?**: GLiNER (Generalist Model for Named Entity Recognition) is a lightweight bidirectional transformer model capable of **zero-shot entity extraction**. Instead of relying on static entity classes, GLiNER takes custom target prompt labels at inference time.
-- **Key Functions**:
-  - `GLiNER.from_pretrained(model_path)`: Loaded locally inside `AadhaarValidator.__init__()` from `models/gliner_model`.
-  - `extract_with_slm(raw_text)` / `slm_model.predict_entities(raw_text, labels)`: Takes text extracted by RapidOCR and feeds it into GLiNER with requested entity prompt labels:
-    `["person name", "date of birth", "gender", "aadhaar number", "address", "father name"]`.
-  - GLiNER pinpoints exact text spans corresponding to candidate entities with high precision confidence scores.
+- **What is GLiNER?**: GLiNER (Generalist Model for Named Entity Recognition) is a lightweight bidirectional transformer model capable of **zero-shot entity extraction**. Instead of relying on static entity classes (like standard `PER` or `LOC`), GLiNER takes custom target prompt labels at inference time.
+- **Target Label Prompting**:
+  In [`aadhaar_validator.py` (Line 882)](file:///c:/Users/Vivek/GIT%20Projects/GLINER/aadhaar_validator.py#L882), target entity prompt labels are passed into `predict_entities()`:
+  ```python
+  labels = ["person", "aadhaar_number", "date of birth", "gender", "address"]
+  entities = self.slm_model.predict_entities(text, labels, threshold=0.45)
+  ```
+  Passing `labels` prompts GLiNER to scan raw OCR text and pinpoint exact text spans corresponding to candidate entities with high precision confidence scores.
+- **Role of `gliner` in `requirements.txt`**:
+  - `models/gliner_model/` contains local **model weights & files** (`pytorch_model.bin`, `gliner_config.json`, tokenizers).
+  - `gliner>=0.2.13` in `requirements.txt` installs the **Python package library** (`from gliner import GLiNER`) required to load model weights into memory and run `.predict_entities()`.
 
-### 4️⃣ Mathematical Verification & Transliteration
+### 4️⃣ Multilingual Processing & Indian Regional Language Pipeline
+How the system identifies non-English words (Hindi, Odia, Tamil, Telugu, Kannada, Marathi, etc.):
+
+| Step | Function / Engine | Technical Operation |
+| :--- | :--- | :--- |
+| **1. Non-English OCR Retrieval** | **RapidOCR Multilingual** | Image pixels are scanned using custom `rec.onnx` weights and `dict.txt` character key maps to extract raw Unicode strings (e.g. `"Government of India"`, `"भारत सरकार"`, `"Vivek Khillar"`, `"ବିବେକ ଖିଲାର"`). |
+| **2. Document Language Detection** | `detect_document_languages()` | Inspects Unicode character ranges (`\u0900-\u097F` Devanagari, `\u0B00-\u0B7F` Odia, `\u0B80-\u0BFF` Tamil, `\u0C00-\u0C7F` Telugu, `\u0C80-\u0CFF` Kannada) to identify document language. |
+| **3. Adjacent Line Unicode Matching** | `process_base64()` (L1079–1096) | Locates the English name (e.g., `"Vivek Khillar"`) and checks lines directly above or below for matching Indic Unicode characters (e.g., `"ବିବେକ ଖିଲାର"` or `"विवेक खिल्लार"`). |
+| **4. Phonetic Transliteration (Fallback)** | `transliterate_name()` | If regional text is blurry on low-quality cards, `transliterate_name()` dynamically converts English phonetics into the target Indic script without remote APIs or hardcoded dictionaries. |
+
+### 5️⃣ Mathematical Verification & Masking
 - **Verhoeff Algorithm (`validate_verhoeff`)**: Validates the extracted 12-digit number against Dihedral group $D_5$ multiplication & permutation matrices to guarantee mathematical validity.
-- **Phonetic Transliteration (`transliterate_name`)**: Dynamically transliterates names between English and target Indic scripts without hardcoded dictionary lookup or remote APIs.
+- **Number Masking (`mask_aadhaar`)**: Formats valid numbers into secure masked strings (`XXXX XXXX 1234`).
 
 ---
 

@@ -881,6 +881,7 @@ class AadhaarValidator:
 
         labels = ["person", "aadhaar_number", "date of birth", "gender", "address"]
         try:
+            # Invoke the slm_model with the prompt as the labels
             entities = self.slm_model.predict_entities(text, labels, threshold=0.45)
             extracted = {}
             for ent in entities:
