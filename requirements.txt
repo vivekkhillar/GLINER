@@ -7,5 +7,6 @@ numpy>=1.24.0
 mcp>=1.2.0
 streamlit>=1.30.0
 
-# Optional SLM (If not present in JFrog, validator seamlessly runs on RapidOCR + pure-Python engine):
-# gliner>=0.2.13
+# Optional SLM Engine:
+gliner>=0.2.13
+

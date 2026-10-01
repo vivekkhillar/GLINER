@@ -6,38 +6,69 @@ A lightweight, enterprise-ready **MCP Tool** for validating and extracting Aadha
 > **100% Offline & Air-Gapped Ready**:
 > - Zero internet required at runtime.
 > - Zero external API calls or outsourced third-party services.
-> - **No JFrog approval needed for `gliner`**: If your internal Artifactory doesn't have the `gliner` package, the system automatically runs on **RapidOCR + Pure-Python Verhoeff + Regex NLP Parser** with identical accuracy!
-> - If you want the SLM, offline `.whl` files are pre-packaged in `vendor/wheels/`.
+> - **Dual Extraction Pipeline**: Operates using **Local GLiNER Small Language Model (SLM)** with automatic fallback to **RapidOCR + Pure-Python Verhoeff Engine**.
+> - Self-contained offline model assets pre-packaged in `models/` and offline wheels in `vendor/wheels/`.
+
 
 ---
 
-## 📁 Clean 3-File Architecture
+## 📁 Project File Structure
 
 ```text
 GLINER/
 ├── app.py                   # 🌐 Interactive Streamlit UI (Upload file -> Base64 -> MCP -> UI)
-├── aadhaar_validator.py     # Core engine: Base64 decode, Multilingual RapidOCR, SLM, Verhoeff, Chunks
-├── mcp_tool.py              # MCP server & tool interface (stdio & SSE on :8090)
-├── test_app.py              # Verification test suite (Verhoeff, Indic numerals, SLM, Inversion)
-├── requirements.txt         # Minimal dependencies (rapidocr, pymupdf, pillow, mcp, streamlit)
-├── mcp_config.json          # Standard MCP client configuration
-└── models/
+├── aadhaar_validator.py     # ⚙️ Core Engine: Base64 decoding, Multilingual RapidOCR, GLiNER SLM, Verhoeff & Transliteration
+├── mcp_tool.py              # 🔌 MCP Server & Tool interface (stdio & SSE transport on :8090)
+├── test_app.py              # 🧪 Verification test suite (Verhoeff, Indic numerals, SLM, Inversion tests)
+├── requirements.txt         # 📦 Dependencies (rapidocr_onnxruntime, pymupdf, pillow, mcp, streamlit, gliner)
+├── mcp_config.json          # ⚙️ Standard MCP client configuration
+├── README.md                # 📖 System documentation & Architecture guide
+├── vendor/                  # 📦 Offline wheel packages for air-gapped environments
+└── models/                  # 🤖 Local Model Assets
     ├── rapidocr_multilingual/  # 🇮🇳 MULTILINGUAL INDIAN GOVT ID OCR MODELS
-    │   ├── bengali/            # rec.onnx + dict.txt (Bengali / Assamese)
-    │   ├── gujarati/           # rec.onnx + dict.txt (Gujarati)
     │   ├── hindi/              # rec.onnx + dict.txt (Hindi / Marathi / Devanagari)
-    │   ├── kannada/            # rec.onnx + dict.txt (Kannada)
-    │   ├── odia/               # rec.onnx + dict.txt (Odia / Oriya)
     │   ├── tamil/              # rec.onnx + dict.txt (Tamil)
-    │   ├── telugu/             # rec.onnx + dict.txt (Telugu)
-    │   └── urdu/               # rec.onnx + dict.txt (Urdu / Perso-Arabic)
+    │   └── telugu/             # rec.onnx + dict.txt (Telugu)
     │
-    └── gliner_model/           # 📦 LOCAL SLM DIRECTORY (Optional Named Entity Recognition)
+    └── gliner_model/           # 📦 LOCAL GLiNER SLM DIRECTORY (Named Entity Recognition)
         ├── pytorch_model.bin        (664 MB model weights)
         ├── gliner_config.json       (Model architecture config)
         ├── tokenizer.json           (Offline tokenizer vocab)
         └── tokenizer_config.json    (Tokenizer settings)
 ```
+
+---
+
+## 🔍 How It Works: Technical Deep Dive
+
+### 1️⃣ Base64 Document Collection & Decoding
+- **Entry Points**: [`validate_aadhaar_document(base64_data)`](file:///c:/Users/Vivek/GIT%20Projects/GLINER/mcp_tool.py#L35) in `mcp_tool.py` $\rightarrow$ `process_base64(base64_str)` in `aadhaar_validator.py`.
+- **Handling Inputs**: Supports raw Base64 strings or Data URIs (e.g. `data:image/png;base64,...`, `data:application/pdf;base64,...`).
+- **Decoding Mechanism**:
+  1. Header prefixes are stripped out automatically.
+  2. Raw bytes are decoded using `base64.b64decode()`.
+  3. **PDF Files**: Renders page streams to high-resolution 200 DPI images using PyMuPDF (`fitz.open()`).
+  4. **Image Files (PNG, JPG, WEBP, BMP, TIFF)**: Pillow (`PIL.Image.open()`) reads image bytes into NumPy arrays (`np.ndarray`) for computer vision processing.
+
+### 2️⃣ RapidOCR Multilingual Capabilities & Indian Character Detection
+- **How RapidOCR is Enhanced**: Standard RapidOCR only comes with default English/Chinese dictionaries. In this project, **RapidOCR capabilities are enhanced** by dynamically loading custom ONNX recognition models (`rec.onnx`) and character dictionary key files (`dict.txt`) for Indian regional scripts (Hindi/Devanagari, Tamil, Telugu, Odia, Bengali, etc.).
+- **Key Functions**:
+  - `load_rapidocr_instance(rec_model_path, rec_keys_path)`: Instantiates `MultilingualRapidOCR` configured with script-specific ONNX neural network weights and dictionary keys.
+  - `_execute_rapid_ocr_on_array(img_np, engine)`: Runs text detection (`TextDetector`), direction classification (`TextClassifier`), and character glyph recognition (`TextRecognizer`).
+  - `score_orientation_with_layout()`: Evaluates image rotations at **0°, 90°, 180°, 270°** and selects the best upright orientation based on keyword scoring and vertical bounding box layout geometry.
+  - `normalize_text()` & `INDIC_DIGIT_MAP`: Automatically converts Indic script numerals (e.g., Devanagari `०-९`, Odia `୦-୯`) to standard ASCII digits `0-9`.
+
+### 3️⃣ Entity Extraction via GLiNER Small Language Model (SLM)
+- **What is GLiNER?**: GLiNER (Generalist Model for Named Entity Recognition) is a lightweight bidirectional transformer model capable of **zero-shot entity extraction**. Instead of relying on static entity classes, GLiNER takes custom target prompt labels at inference time.
+- **Key Functions**:
+  - `GLiNER.from_pretrained(model_path)`: Loaded locally inside `AadhaarValidator.__init__()` from `models/gliner_model`.
+  - `extract_with_slm(raw_text)` / `slm_model.predict_entities(raw_text, labels)`: Takes text extracted by RapidOCR and feeds it into GLiNER with requested entity prompt labels:
+    `["person name", "date of birth", "gender", "aadhaar number", "address", "father name"]`.
+  - GLiNER pinpoints exact text spans corresponding to candidate entities with high precision confidence scores.
+
+### 4️⃣ Mathematical Verification & Transliteration
+- **Verhoeff Algorithm (`validate_verhoeff`)**: Validates the extracted 12-digit number against Dihedral group $D_5$ multiplication & permutation matrices to guarantee mathematical validity.
+- **Phonetic Transliteration (`transliterate_name`)**: Dynamically transliterates names between English and target Indic scripts without hardcoded dictionary lookup or remote APIs.
 
 ---
 
