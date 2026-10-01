@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "aadhaar-validator": {
+      "command": "python",
+      "args": [
+        "mcp_tool.py",
+        "--transport",
+        "stdio"
+      ],
+      "env": {
+        "PYTHONUNBUFFERED": "1"
+      }
+    }
+  }
+}
