@@ -550,13 +550,21 @@ class AadhaarValidator:
                 continue
             for lang_dir in sdir.iterdir():
                 if lang_dir.is_dir():
-                    rec_onnx = lang_dir / "rec.onnx"
+                    # Search for candidate ONNX/Quantized model files (rec.onnx, rec_quant.onnx, rec.dat, rec.bin)
+                    rec_candidates = [
+                        lang_dir / "rec.onnx",
+                        lang_dir / "rec_quant.onnx",
+                        lang_dir / "rec.dat",
+                        lang_dir / "rec.bin"
+                    ]
+                    rec_onnx = next((p for p in rec_candidates if p.exists()), None)
                     dict_txt = lang_dir / "dict.txt"
-                    if rec_onnx.exists() and dict_txt.exists():
+
+                    if rec_onnx and dict_txt.exists():
                         lang_name = lang_dir.name.replace("rapidocr_", "")
                         try:
                             self.regional_engines[lang_name] = load_rapidocr_instance(str(rec_onnx), str(dict_txt))
-                            print(f"Loaded RapidOCR multilingual engine: {lang_name.upper()}")
+                            print(f"Loaded RapidOCR multilingual engine: {lang_name.upper()} ({rec_onnx.name})")
                         except Exception as e:
                             print(f"Notice: Could not load RapidOCR {lang_name} engine: {e}")
 
