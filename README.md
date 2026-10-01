@@ -2,12 +2,13 @@
 
 A lightweight, enterprise-ready **MCP Tool** for validating and extracting Aadhaar card details from **Base64 documents** (PDF, JPEG, JPG, PNG, WEBP, BMP, TIFF) using a **local Small Language Model (SLM)** and **RapidOCR**.
 
-> [!IMPORTANT]
-> **100% Offline & Air-Gapped Ready**:
-> - Zero internet required at runtime.
-> - Zero external API calls or outsourced third-party services.
-> - **Dual Extraction Pipeline**: Operates using **Local GLiNER Small Language Model (SLM)** with automatic fallback to **RapidOCR + Pure-Python Verhoeff Engine**.
-> - Self-contained offline model assets pre-packaged in `models/` and offline wheels in `vendor/wheels/`.
+> [!NOTE]
+> **Key Features & Architecture**:
+> - **Local Processing**: Processes documents locally using ONNX runtime and local model files without external API dependencies.
+> - **Dual Extraction Pipeline**: Combines **Multilingual RapidOCR** text detection with **GLiNER Small Language Model (SLM)** entity recognition.
+> - **Mathematical Validation**: Uses the pure-Python **Verhoeff Checksum Algorithm** for 100% accurate 12-digit Aadhaar number verification.
+> - **Base64 & Multi-Format Support**: Directly decodes and processes PDF, PNG, JPG, JPEG, WEBP, BMP, and TIFF Base64 inputs.
+
 
 
 ---
